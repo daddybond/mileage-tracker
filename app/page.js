@@ -567,35 +567,35 @@ export default function Home() {
         </div>
       )}
 
-      <div className="app-container">
+      <div className="app-container" style={{ padding: '0 1rem', maxWidth: '800px', margin: '0 auto' }}>
         {/* Header */}
-        <header className="app-header">
-          <div className="app-logo">
-            <div className="app-logo-icon">🚗</div>
-            <h1 className="app-title">Mileage Tracker</h1>
+        <header className="app-header" style={{ textAlign: 'center', padding: '3rem 0 2rem' }}>
+          <div className="app-logo" style={{ marginBottom: '0.5rem' }}>
+            <div className="app-logo-icon" style={{ fontSize: '3rem', filter: 'drop-shadow(0 0 10px rgba(99,102,241,0.5))' }}>🚗</div>
+            <h1>Mileage Tracker</h1>
           </div>
-          <p className="app-subtitle">
-            Automated business mileage calculations from your Google Calendar
+          <p className="sub-heading">
+            Automated business mileage calculations <br className="mobile-only" /> from your Google Calendar
           </p>
         </header>
 
         {/* Auth & Controls */}
-        <div className="controls-bar">
-          <div className="card">
+        <div className="controls-bar" style={{ marginBottom: '1.5rem' }}>
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
             <div className="card-header">
               <div className="card-title">
                 <span className="card-title-icon">📅</span>
                 Google Calendar
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div className="mobile-stack" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}>
                 <AuthButton authenticated={authenticated} loading={authLoading} />
                 {authenticated && (
                   <button 
-                    className="btn btn-sm btn-secondary"
+                    className="glass-pill"
                     onClick={() => setShowSettings(true)}
-                    title="Configure AI learning and keywords"
+                    style={{ padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.85rem' }}
                   >
-                    ⚙️ AI Settings
+                    ⚙️ Settings
                   </button>
                 )}
                 {trips.length > 0 && (
@@ -608,9 +608,9 @@ export default function Home() {
                   </button>
                 )}
                 <button 
-                  className="btn btn-secondary"
+                  className="btn btn-primary"
                   onClick={() => setShowManualModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}
                 >
                   ➕ Add Journey
                 </button>
@@ -681,15 +681,16 @@ export default function Home() {
 
         {/* Not authenticated state */}
         {!authLoading && !authenticated && (
-          <div className="card">
+          <div className="glass-card animate-in" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
             <div className="auth-section">
-              <span className="auth-icon">🔐</span>
-              <h2 className="auth-title">Connect Your Calendar</h2>
-              <p className="auth-description">
-                Link your Google Calendar to automatically detect business trips,
-                calculate mileage, and track your expenses at 45p per mile.
+              <span className="auth-icon" style={{ fontSize: '4rem', display: 'block', marginBottom: '1.5rem' }}>🔐</span>
+              <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Connect Your Calendar</h2>
+              <p className="sub-heading" style={{ marginBottom: '2rem', maxWidth: '300px', margin: '0 auto 2rem' }}>
+                Link your Google Calendar to automatically detect business trips <br/> and track your expenses at 45p per mile.
               </p>
-              <AuthButton authenticated={false} loading={false} />
+              <div style={{ maxWidth: '280px', margin: '0 auto' }}>
+                <AuthButton authenticated={false} loading={false} />
+              </div>
             </div>
           </div>
         )}

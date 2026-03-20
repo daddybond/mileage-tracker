@@ -8,40 +8,40 @@ export default function SummaryBar({ trips, onDownload }) {
   const personalCount = trips.filter(t => t.classification === 'personal').length;
 
   return (
-    <div className="summary-grid">
-      <div className="stat-card stat-card--miles">
-        <div className="stat-label">Total Miles</div>
-        <div className="stat-value stat-value--accent">
+    <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="glass-card stat-item" style={{ padding: '1.25rem' }}>
+        <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Total Miles</div>
+        <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--accent)' }}>
           {totalMiles.toFixed(1)}
         </div>
       </div>
-      <div className="stat-card stat-card--cost">
-        <div className="stat-label">Total Mileage Cost</div>
-        <div className="stat-value stat-value--green">
+      <div className="glass-card stat-item" style={{ padding: '1.25rem', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+        <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Mileage Cost</div>
+        <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--success)' }}>
           £{totalCost.toFixed(2)}
         </div>
       </div>
-      <div className="stat-card stat-card--trips">
-        <div className="stat-label">Business Trips</div>
-        <div className="stat-value stat-value--amber">
+      <div className="glass-card stat-item" style={{ padding: '1.25rem', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+        <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Business</div>
+        <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#f59e0b' }}>
           {businessTrips.length}
         </div>
       </div>
-      <div className="stat-card stat-card--personal">
-        <div className="stat-label">Personal Events</div>
-        <div className="stat-value stat-value--purple">
+      <div className="glass-card stat-item" style={{ padding: '1.25rem', borderColor: 'rgba(168, 85, 247, 0.2)' }}>
+        <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Personal</div>
+        <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#a855f7' }}>
           {personalCount}
         </div>
       </div>
       
       {businessTrips.length > 0 && (
-        <div className="summary-actions">
-          <button className="btn btn-primary" onClick={onDownload}>
-            <span className="btn-icon">⬇️</span>
-            Download CSV Report
+        <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+          <button className="btn-primary" onClick={onDownload} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+            <span>⬇️</span> Download Report
           </button>
         </div>
       )}
     </div>
   );
+}
 }

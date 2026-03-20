@@ -21,9 +21,14 @@ export default function AuthButton({ authenticated, loading }) {
 
   if (authenticated) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <span className="badge badge--business">✓ Connected</span>
-        <button className="btn btn-sm btn-danger" onClick={handleDisconnect}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="glass-pill" style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <span style={{ fontSize: '0.6rem' }}>●</span> Connected
+        </div>
+        <button 
+          onClick={handleDisconnect}
+          style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: '0.75rem', fontWeight: '500', padding: '0.4rem' }}
+        >
           Disconnect
         </button>
       </div>
@@ -31,8 +36,8 @@ export default function AuthButton({ authenticated, loading }) {
   }
 
   return (
-    <button className="btn btn-primary" onClick={handleConnect}>
-      <span className="btn-icon">📅</span>
+    <button className="btn-primary" onClick={handleConnect} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+      <span style={{ fontSize: '1.2rem' }}>📅</span>
       Connect Google Calendar
     </button>
   );

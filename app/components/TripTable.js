@@ -57,53 +57,60 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
   };
 
   return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+    <div className="glass-card animate-in" style={{ overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
       {/* Tab Header */}
-      <div className="tabs-wrapper">
-        <div className="tabs-list">
+      <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="glass-pill" style={{ display: 'flex', padding: '0.25rem', marginBottom: '1rem' }}>
           <button 
-            className={`tab-btn ${activeTab === 'needs_review' ? 'tab-btn--active' : ''}`}
+            className="tab-btn"
             onClick={() => setActiveTab('needs_review')}
+            style={{ 
+              flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'needs_review' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'needs_review' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
+            }}
           >
-            🤔 Review <span className="tab-count">{needsReviewTrips.length}</span>
+            Review <span style={{ opacity: 0.5 }}>{needsReviewTrips.length}</span>
           </button>
           <button 
-            className={`tab-btn ${activeTab === 'business' ? 'tab-btn--active' : ''}`}
+            className="tab-btn"
             onClick={() => setActiveTab('business')}
+            style={{ 
+              flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'business' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'business' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
+            }}
           >
-            🚗 Business <span className="tab-count">{businessTrips.length}</span>
+            Business <span style={{ opacity: 0.5 }}>{businessTrips.length}</span>
           </button>
           <button 
-            className={`tab-btn ${activeTab === 'personal' ? 'tab-btn--active' : ''}`}
+            className="tab-btn"
             onClick={() => setActiveTab('personal')}
+            style={{ 
+              flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'personal' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'personal' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
+            }}
           >
-            🚶 Personal <span className="tab-count">{personalTrips.length}</span>
+            Personal <span style={{ opacity: 0.5 }}>{personalCount}</span>
           </button>
         </div>
 
-        <div className="tab-search-container">
-          <span className="tab-search-icon">🔍</span>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
           <input 
             type="text"
-            className="tab-search-input"
-            placeholder="Search current tab..."
+            placeholder="Search journeys..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ width: '100%', paddingLeft: '2.5rem', background: 'rgba(255,255,255,0.03)' }}
           />
         </div>
       </div>
 
-      <div className="trip-table-container">
+      <div className="trip-table-container " style={{ overflowX: 'auto' }}>
         {/* Review Table */}
         {activeTab === 'needs_review' && (
-          <table className="trip-table">
+          <table className="trip-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
-                <th>Date</th>
-                <th>Event</th>
-                <th>Logic</th>
-                <th>AI Reasoning</th>
-                <th>Action</th>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.75rem', color: 'var(--muted)' }}>
+                <th style={{ padding: '1rem' }}>DATE</th>
+                <th style={{ padding: '1rem' }}>EVENT</th>
+                <th style={{ padding: '1rem' }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
