@@ -7,6 +7,11 @@ export async function GET(request) {
     const { origin } = new URL(request.url);
     const redirectUri = `${origin}/api/auth/google/callback`;
     
+    console.log('--- DEBUG: GOOGLE AUTH INIT ---');
+    console.log('Origin:', origin);
+    console.log('Redirect URI:', redirectUri);
+    console.log('Client ID:', process.env.GOOGLE_CLIENT_ID?.substring(0, 15) + '...');
+    
     const url = getAuthUrl(redirectUri);
     return NextResponse.redirect(url);
   } catch (error) {
