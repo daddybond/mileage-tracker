@@ -4,13 +4,15 @@ import { getAuthUrl } from '@/lib/google-auth';
 export async function GET(request) {
   try {
     // Dynamically construct redirect URI based on the current domain
-    const { origin } = new URL(request.url);
+    // Force HTTPS for the redirect URI on Vercel
+    let { origin } = new URL(request.url);
+    if (origin.startsWith('http://') && !origin.includes('localhost')) {
+      origin = origin.replace('http://', 'https://');
+    }
     const redirectUri = `${origin}/api/auth/google/callback`;
     
     console.log('--- DEBUG: GOOGLE AUTH INIT ---');
-    console.log('Origin:', origin);
-    console.log('Redirect URI:', redirectUri);
-    console.log('Client ID:', process.env.GOOGLE_CLIENT_ID?.substring(0, 15) + '...');
+    console.log('Final Redirect URI:', redirectUri);
     
     const url = getAuthUrl(redirectUri);
     return NextResponse.redirect(url);

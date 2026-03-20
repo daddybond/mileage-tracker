@@ -20,8 +20,11 @@ export async function GET(request) {
   }
 
   try {
-    // Construct the same dynamic redirect URI for verification
-    const { origin } = new URL(request.url);
+    // Force HTTPS for the redirect URI on Vercel
+    let { origin } = new URL(request.url);
+    if (origin.startsWith('http://') && !origin.includes('localhost')) {
+      origin = origin.replace('http://', 'https://');
+    }
     const redirectUri = `${origin}/api/auth/google/callback`;
 
     const tokens = await getTokensFromCode(code, redirectUri);
