@@ -44,4 +44,3 @@ export default function SummaryBar({ trips, onDownload }) {
     </div>
   );
 }
-}

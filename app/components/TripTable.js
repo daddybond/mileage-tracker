@@ -86,7 +86,7 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
               flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'personal' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'personal' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
             }}
           >
-            Personal <span style={{ opacity: 0.5 }}>{personalCount}</span>
+            Personal <span style={{ opacity: 0.5 }}>{personalTrips.length}</span>
           </button>
         </div>
 
