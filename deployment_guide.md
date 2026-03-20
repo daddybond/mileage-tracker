@@ -1,40 +1,26 @@
-# Deployment Guide: Go Public with Vercel
+# Final Step: Getting your App Online (Vercel)
 
-To use this app on your iPhone anywhere (not just at home), you should deploy it to a service like **Vercel**. It's free and perfect for Next.js apps.
+Follow these 4 steps at [Vercel.com](https://vercel.com/daddybond/projects).
 
-## Prerequisites
-- A **GitHub** account.
-- A **Vercel** account (sign up with GitHub).
+### 1. Start the Import
+1. Click **"Add New..."** (top right) -> **"Project"**.
+2. Find **`mileage-tracker`** and click **Import**.
 
-## Step 1: Push Code to GitHub
-1. Create a new repository on GitHub (e.g., `mileage-tracker`).
-2. Follow the instructions to push your local code:
-   ```bash
-   git add .
-   git commit -m "Deploying to Vercel"
-   git push origin main
-   ```
+### 2. Add your Secret Keys
+1. Scroll down to **Environment Variables**.
+2. Open the file `.env.local` on your Mac (it's in your project folder).
+3. Copy **EVERYTHING** inside that file.
+4. Paste it all into the **"Key"** box in Vercel. It will automatically split them into the right places.
 
-## Step 2: Import to Vercel
-1. Go to [Vercel](https://vercel.com/new).
-2. Find your `mileage-tracker` repository and click **Import**.
-3. **Crucial**: Expand the **Environment Variables** section.
-4. Copy-paste EVERY key from your local `.env.local` file into Vercel:
-   - `GOOGLE_CLIENT_ID`
-   - `GOOGLE_CLIENT_SECRET`
-   - `GOOGLE_MAPS_API_KEY`
-   - `GEMINI_API_KEY`
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `NEXT_PUBLIC_BASE_URL` (Set this to your Vercel URL, e.g., `https://my-app.vercel.app`)
-5. Click **Deploy**.
+### 3. Deploy
+1. Click the blue **"Deploy"** button.
+2. Wait for it to finish and **Copy the new website link** it gives you.
 
-## Step 3: Update Google Cloud Console
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-2. Edit your OAuth Client ID.
-3. Add your new Vercel URL to:
-   - **Authorized JavaScript origins**: `https://my-app.vercel.app`
-   - **Authorized redirect URIs**: `https://my-app.vercel.app/api/auth/google/callback`
+### 4. Update Google Login
+1. Go to [Google Cloud Credentials](https://console.cloud.google.com/apis/credentials).
+2. Click the **Pencil icon** to edit your Client ID.
+3. Add your new Vercel link to **"Authorized JavaScript origins"**.
+4. Add your new Vercel link + `/api/auth/google/callback` to **"Authorized redirect URIs"**.
+5. Click **Save**.
 
-### Success!
-Once Vercel finishes, you can visit the the site on your iPhone and repeat the "Add to Home Screen" steps using your new public URL! limit" mode:AGENT_MODE_VERIFICATION
+Your app is now ready to use on your iPhone! limit" mode:AGENT_MODE_VERIFICATION

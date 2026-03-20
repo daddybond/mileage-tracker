@@ -20,7 +20,11 @@ export async function GET(request) {
   }
 
   try {
-    const tokens = await getTokensFromCode(code);
+    // Construct the same dynamic redirect URI for verification
+    const { origin } = new URL(request.url);
+    const redirectUri = `${origin}/api/auth/google/callback`;
+
+    const tokens = await getTokensFromCode(code, redirectUri);
 
     // Store tokens in an HTTP-only cookie (encrypted in production)
     const cookieStore = await cookies();
