@@ -20,14 +20,12 @@ export async function GET(request) {
   }
 
   try {
-    // Force HTTPS for the redirect URI on Vercel
-    let { origin } = new URL(request.url);
-    if (origin.startsWith('http://') && !origin.includes('localhost')) {
-      origin = origin.replace('http://', 'https://');
-    }
-    const redirectUri = `${origin}/api/auth/google/callback`;
-
-    const tokens = await getTokensFromCode(code, redirectUri);
+    // If OAUTH_REDIRECT_URI is set in Vercel, the lib will use it automatically.
+    // Otherwise, we calculate it dynamically here as a backup.
+    const { origin } = new URL(request.url);
+    const dynamicRedirectUri = origin.replace('http://', 'https://') + '/api/auth/google/callback';
+    
+    const tokens = await getTokensFromCode(code, process.env.OAUTH_REDIRECT_URI || dynamicRedirectUri);
 
     // Store tokens in an HTTP-only cookie (encrypted in production)
     const cookieStore = await cookies();
