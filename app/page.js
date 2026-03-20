@@ -538,18 +538,29 @@ export default function Home() {
     addToast('Trip updated.', 'success');
   };
 
-  const handleClearData = async () => {
-    await Promise.all([
-      clearAllTrips(),
-      clearLearningMemory()
-    ]);
-    localStorage.removeItem('mileage_trips');
-    localStorage.removeItem('destination_cache');
-    localStorage.removeItem('learning_memory');
-    setTrips([]);
-    setDestinationCache({});
-    setLearningMemory([]);
-    addToast('All data and memory cleared.', 'success');
+  const handleManualSave = async () => {
+    try {
+      addToast('Cloud Sync: Saving...', 'success');
+      await saveAllTrips(trips);
+      addToast('All data backed up to Supabase!', 'success');
+    } catch (e) {
+      addToast('Save failed.', 'error');
+    }
+  };
+
+  const handleManualRetrieve = async () => {
+    try {
+      addToast('Cloud Sync: Fetching...', 'success');
+      const dbTrips = await loadTrips();
+      if (dbTrips.length > 0) {
+        setTrips(dbTrips.sort((a, b) => new Date(b.date) - new Date(a.date)));
+        addToast(`Restored ${dbTrips.length} journeys from cloud.`, 'success');
+      } else {
+        addToast('No saved data found in cloud.', 'warning');
+      }
+    } catch (e) {
+      addToast('Fetch failed.', 'error');
+    }
   };
 
   return (
@@ -704,6 +715,8 @@ export default function Home() {
                 return t.date >= startDate && t.date <= endDate;
               })} 
               onDownload={handleDownloadReport} 
+              onSave={handleManualSave}
+              onRetrieve={handleManualRetrieve}
             />
             <TripTable 
               trips={trips.filter(t => {

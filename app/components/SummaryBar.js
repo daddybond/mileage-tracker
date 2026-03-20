@@ -1,6 +1,6 @@
 'use client';
 
-export default function SummaryBar({ trips, onDownload }) {
+export default function SummaryBar({ trips, onDownload, onSave, onRetrieve }) {
   const businessTrips = trips.filter(t => t.classification === 'business' && t.roundTripMiles);
   const totalMiles = businessTrips.reduce((sum, t) => sum + (t.roundTripMiles || 0), 0);
   const totalCost = businessTrips.reduce((sum, t) => sum + (t.cost || 0), 0);
@@ -34,13 +34,17 @@ export default function SummaryBar({ trips, onDownload }) {
         </div>
       </div>
       
-      {businessTrips.length > 0 && (
-        <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
-          <button className="btn-primary" onClick={onDownload} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            <span>⬇️</span> Download Report
-          </button>
-        </div>
-      )}
+      <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem', display: 'flex', gap: '0.75rem' }}>
+        <button className="btn-primary" onClick={onDownload} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <span>⬇️</span> CSV
+        </button>
+        <button className="btn-primary" onClick={onSave} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <span>☁️</span> Save
+        </button>
+        <button className="btn-primary" onClick={onRetrieve} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <span>🔄</span> Pull
+        </button>
+      </div>
     </div>
   );
 }
