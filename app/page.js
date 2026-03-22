@@ -170,16 +170,20 @@ export default function Home() {
         return;
       }
       
-      // PRE-FILTER: Protect rigidly qualified trips. If it exists in state and is 'business' or 'ignored', DO NOT TOUCH.
       const freshEvents = events.filter(e => {
         const existing = trips.find(t => t.eventId === e.id);
         if (!existing) return true; // Brand new
-        if (existing.classification === 'needs_review') return true; // Let AI try again, or it might just stick
+        if (existing.classification === 'needs_review') return true; // Let AI try again
         return false; // It's 'business', or 'ignored'. PROTECT IT.
       });
 
+      const activeWindowIds = new Set(events.map(e => e.id));
+      const activeInWindow = trips.filter(t => activeWindowIds.has(t.eventId));
+      const bCount = activeInWindow.filter(t => t.classification === 'business').length;
+      const iCount = activeInWindow.filter(t => t.classification === 'personal' || t.classification === 'ignored').length;
+
       if (freshEvents.length === 0) {
-        addToast('All events in this period are already classified and protected.', 'success');
+        addToast(`All ${events.length} events are protected. Found ${bCount} business trips and ${iCount} ignored personal trips.`, 'success');
         setProcessing(false);
         setProgress({ step: '', percent: 0 });
         return;
