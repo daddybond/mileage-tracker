@@ -155,7 +155,8 @@ export default function Home() {
 
     try {
       // Step 1: Fetch calendar events
-      const eventsRes = await fetch(`/api/calendar/events?startDate=${startDate}&endDate=${endDate}`);
+      // Append cache buster to ensure local browser cache doesn't swallow the GET request
+      const eventsRes = await fetch(`/api/calendar/events?startDate=${startDate}&endDate=${endDate}&_t=${Date.now()}`);
       if (!eventsRes.ok) {
         const err = await eventsRes.json();
         throw new Error(err.error || 'Failed to fetch events');
@@ -346,16 +347,22 @@ export default function Home() {
       });
       setProgress({ step: 'Complete!', percent: 100 });
 
-      const businessCount = mergedTrips.filter(t => t.classification === 'business').length;
-      const reviewCount = mergedTrips.filter(t => t.classification === 'needs_review').length;
-      const autoFilledCount = mergedTrips.filter(t => t.isAutoFilled).length;
-      
-      let msg = `Found ${businessCount} business trips and ${reviewCount} to review.`;
-      if (autoFilledCount > 0) {
-        msg += ` ${autoFilledCount} locations remembered from past visits!`;
-      }
-      
-      addToast(msg, 'success');
+      // Get true totals for just the actively analyzed window (including shielded items)
+      const windowIds = new Set(events.map(e => e.id));
+      setTrips(prev => {
+        const activeInWindow = prev.filter(t => windowIds.has(t.eventId));
+        const businessCount = activeInWindow.filter(t => t.classification === 'business').length;
+        const reviewCount = activeInWindow.filter(t => t.classification === 'needs_review').length;
+        const autoFilledCount = mergedTrips.filter(t => t.isAutoFilled).length;
+        
+        let msg = `Found ${businessCount} business trips and ${reviewCount} to review in this period.`;
+        if (autoFilledCount > 0) {
+          msg += ` ${autoFilledCount} locations remembered from past visits!`;
+        }
+        
+        addToast(msg, 'success');
+        return prev; // We're only using setTrips here to safely access the newest state without race conditions
+      });
       setLastSync(new Date());
 
     } catch (err) {
