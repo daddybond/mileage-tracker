@@ -206,21 +206,41 @@ export default function Home() {
         }
       }, []);
 
-      // Step 2: Classify events with memory
-      const classifyRes = await fetch('/api/classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          events: freshEvents, 
-          memory: combinedMemory,
-          customKeywords: customKeywords
-        }),
-      });
-      if (!classifyRes.ok) {
-        const err = await classifyRes.json();
-        throw new Error(err.error || 'Failed to classify events');
+      // Step 2: Classify events with memory (Sequential Client-Side Batching to prevent Vercel 10s timeouts)
+      const classifications = [];
+      const CHUNK_SIZE = 15;
+      
+      for (let i = 0; i < freshEvents.length; i += CHUNK_SIZE) {
+        const chunk = freshEvents.slice(i, i + CHUNK_SIZE);
+        setProgress({ step: `Classifying AI Batch ${Math.floor(i/CHUNK_SIZE) + 1} of ${Math.ceil(freshEvents.length/CHUNK_SIZE)}...`, percent: 30 + Math.floor((i/freshEvents.length) * 20) });
+        
+        try {
+          const classifyRes = await fetch('/api/classify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              events: chunk, 
+              memory: combinedMemory,
+              customKeywords: customKeywords
+            }),
+          });
+          
+          if (!classifyRes.ok) {
+            console.error(`Batch ${i} failed, continuing to next.`);
+            continue;
+          }
+          
+          const { classifications: batchClassifications } = await classifyRes.json();
+          classifications.push(...batchClassifications);
+        } catch (chunkErr) {
+          console.error(`Batch ${i} fatal error:`, chunkErr);
+        }
       }
-      const { classifications } = await classifyRes.json();
+
+      if (classifications.length === 0 && freshEvents.length > 0) {
+        throw new Error('All AI classification batches failed or timed out.');
+      }
+
       // Merge event data with classifications using a Map for O(N) performance
       const eventMap = new Map(freshEvents.map(e => [e.id, e]));
       const mergedTrips = classifications.map((c) => {
