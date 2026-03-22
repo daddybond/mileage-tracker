@@ -165,7 +165,6 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
                         className="form-control form-control-sm"
                         value={editValues.title}
                         onChange={(e) => setEditValues(prev => ({ ...prev, title: e.target.value }))}
-                        autoFocus
                       />
                     ) : (
                       <div className="trip-event-name">{trip.title}</div>
@@ -178,6 +177,7 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
                         value={editValues.destinationAddress}
                         onChange={(val) => setEditValues(prev => ({ ...prev, destinationAddress: val }))}
                         placeholder="Type destination..."
+                        autoFocus={true}
                       />
                     ) : (
                       <span className="trip-journey">Home → {trip.destinationAddress || 'Unknown'} → Home</span>

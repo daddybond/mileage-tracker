@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-export default function AddressAutocomplete({ value, onChange, placeholder, className }) {
+export default function AddressAutocomplete({ value, onChange, placeholder, className, autoFocus = false }) {
   const [inputValue, setInputValue] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -11,7 +11,10 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
 
   useEffect(() => {
     setInputValue(value || '');
-  }, [value]);
+    if (autoFocus && value && value.length > 2) {
+      fetchSuggestions(value);
+    }
+  }, [value, autoFocus]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
