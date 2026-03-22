@@ -599,6 +599,25 @@ export default function Home() {
     }
   };
 
+  const handleClearData = async () => {
+    if (confirm('Are you sure you want to delete ALL data permanently?')) {
+      try {
+        await clearAllTrips();
+        await clearLearningMemory();
+        setTrips([]);
+        setLearningMemory([]);
+        setDestinationCache({});
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('destination_cache');
+        }
+        addToast('All data has been fully wiped.', 'success');
+      } catch (err) {
+        console.error('Clear data error:', err);
+        addToast('Failed to clear data.', 'error');
+      }
+    }
+  };
+
   return (
     <>
       <div className="app-background"></div>
