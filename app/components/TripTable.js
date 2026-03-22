@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import AddressAutocomplete from './AddressAutocomplete';
 
 export default function TripTable({ trips, onRequestDestination, onReviewTrip, onTripUpdate }) {
@@ -9,24 +9,37 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({});
 
-  // Internal filtering for the search term
-  const filterTrips = (list) => {
-    if (!searchTerm) return list;
-    const s = searchTerm.toLowerCase();
-    return list.filter(t => 
-      (t.title || '').toLowerCase().includes(s) ||
-      (t.destinationAddress || '').toLowerCase().includes(s) ||
-      (t.destination || '').toLowerCase().includes(s)
-    );
-  };
+  // Memoize everything to save memory
+  const { displayedReview, displayedBusiness, displayedPersonal, totalOriginal } = useMemo(() => {
+    const businessTrips = trips.filter(t => t.classification === 'business');
+    const needsReviewTrips = trips.filter(t => t.classification === 'needs_review');
+    const personalTrips = trips.filter(t => t.classification === 'personal');
 
-  const businessTrips = trips.filter(t => t.classification === 'business');
-  const needsReviewTrips = trips.filter(t => t.classification === 'needs_review');
-  const personalTrips = trips.filter(t => t.classification === 'personal');
+    const filter = (list) => {
+      if (!searchTerm) return list;
+      const s = searchTerm.toLowerCase();
+      return list.filter(t => 
+        (t.title || '').toLowerCase().includes(s) ||
+        (t.destinationAddress || '').toLowerCase().includes(s) ||
+        (t.destination || '').toLowerCase().includes(s)
+      );
+    };
 
-  const displayedReview = filterTrips(needsReviewTrips);
-  const displayedBusiness = filterTrips(businessTrips);
-  const displayedPersonal = filterTrips(personalTrips);
+    return {
+      displayedReview: filter(needsReviewTrips),
+      displayedBusiness: filter(businessTrips),
+      displayedPersonal: filter(personalTrips),
+      totalOriginal: {
+        review: needsReviewTrips.length,
+        business: businessTrips.length,
+        personal: personalTrips.length
+      }
+    };
+  }, [trips, searchTerm]);
+
+  const activeTrips = activeTab === 'needs_review' ? displayedReview : 
+                    activeTab === 'business' ? displayedBusiness : 
+                    displayedPersonal;
 
   const handleEditStart = (trip) => {
     setEditingId(trip.eventId);
@@ -47,7 +60,10 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
   };
 
   const formatDate = (dateStr) => {
+    if (!dateStr) return 'No Date';
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    
     return d.toLocaleDateString('en-GB', { 
       weekday: 'short', 
       day: 'numeric', 
@@ -68,7 +84,7 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
               flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'needs_review' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'needs_review' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
             }}
           >
-            Review <span style={{ opacity: 0.5 }}>{needsReviewTrips.length}</span>
+            Review <span style={{ opacity: 0.5 }}>{totalOriginal.review}</span>
           </button>
           <button 
             className="tab-btn"
@@ -77,7 +93,7 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
               flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'business' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'business' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
             }}
           >
-            Business <span style={{ opacity: 0.5 }}>{businessTrips.length}</span>
+            Business <span style={{ opacity: 0.5 }}>{totalOriginal.business}</span>
           </button>
           <button 
             className="tab-btn"
@@ -86,7 +102,7 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
               flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'personal' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'personal' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
             }}
           >
-            Personal <span style={{ opacity: 0.5 }}>{personalTrips.length}</span>
+            Personal <span style={{ opacity: 0.5 }}>{totalOriginal.personal}</span>
           </button>
         </div>
 
@@ -109,30 +125,22 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.75rem', color: 'var(--muted)' }}>
                 <th style={{ padding: '1rem' }}>DATE</th>
-                <th style={{ padding: '1rem' }}>EVENT</th>
+                <th style={{ padding: '1rem' }}>EVENT & REASON</th>
+                <th style={{ padding: '1rem' }}>CONFIDENCE</th>
                 <th style={{ padding: '1rem' }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
-              {displayedReview.length === 0 ? (
-                <tr><td colSpan="5" className="empty-state">No items found in review.</td></tr>
-              ) : displayedReview.map((trip, index) => (
+              {activeTrips.length === 0 ? (
+                <tr><td colSpan="4" className="empty-state">No items found in review.</td></tr>
+              ) : activeTrips.map((trip, index) => (
                 <tr key={trip.eventId || index}>
                   <td><span className="trip-date">{formatDate(trip.date)}</span></td>
                   <td>
-                    {editingId === trip.eventId ? (
-                      <input 
-                        className="form-control form-control-sm"
-                        value={editValues.title}
-                        onChange={(e) => setEditValues(prev => ({ ...prev, title: e.target.value }))}
-                        autoFocus
-                      />
-                    ) : (
-                      <div className="trip-event-name">{trip.title}</div>
-                    )}
+                    <div className="trip-event-name">{trip.title}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.2rem' }}>{trip.reasoning}</div>
                   </td>
                   <td><span className="badge badge--pending">{trip.confidence || 0}% {trip.source || 'AI'}</span></td>
-                  <td><span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{trip.reasoning}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button className="btn btn-sm btn-success" onClick={() => onReviewTrip(trip.eventId, 'business')}>✓</button>
@@ -160,9 +168,9 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
               </tr>
             </thead>
             <tbody>
-              {displayedBusiness.length === 0 ? (
+              {activeTrips.length === 0 ? (
                 <tr><td colSpan="6" className="empty-state">No business trips found.</td></tr>
-              ) : displayedBusiness.map((trip, index) => (
+              ) : activeTrips.map((trip, index) => (
                 <tr key={trip.eventId || index}>
                   <td><span className="trip-date">{formatDate(trip.date)}</span></td>
                   <td>
@@ -224,9 +232,9 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
               </tr>
             </thead>
             <tbody>
-              {displayedPersonal.length === 0 ? (
+              {activeTrips.length === 0 ? (
                 <tr><td colSpan="3" className="empty-state">No personal items found.</td></tr>
-              ) : displayedPersonal.map((trip, index) => (
+              ) : activeTrips.map((trip, index) => (
                 <tr key={trip.eventId || index}>
                   <td><span className="trip-date">{formatDate(trip.date)}</span></td>
                   <td>{trip.title}</td>

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import SummaryBar from './components/SummaryBar';
-import TripTable from './components/TripTable';
+// Components removed for dynamic import
 import DestinationPrompt from './components/DestinationPrompt';
 import DateRangeSelector from './components/DateRangeSelector';
 import AuthButton from './components/AuthButton';
 import LearningSettings from './components/LearningSettings';
 import ManualTripModal from './components/ManualTripModal';
+import dynamic from 'next/dynamic';
+
+const Dashboard = dynamic(() => import('./components/Dashboard'), { ssr: false });
 import {
   loadTrips, saveAllTrips, deleteTrip as dbDeleteTrip, clearAllTrips,
   loadDestinationCache, saveCacheEntry,
@@ -33,6 +35,7 @@ export default function Home() {
   const [isAutoSync, setIsAutoSync] = useState(false);
   const [lastSync, setLastSync] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   // Load data from Supabase on mount (with localStorage migration)
   useEffect(() => {
@@ -70,13 +73,18 @@ export default function Home() {
 
     initData();
     checkAuth();
+    setIsMounted(true);
   }, []);
 
-  // Sync trips to Supabase when they change
+  // Sync trips to Supabase with debounce to avoid memory spikes
   useEffect(() => {
-    if (trips.length > 0) {
+    if (trips.length === 0) return;
+    
+    const handler = setTimeout(() => {
       saveAllTrips(trips);
-    }
+    }, 2000); // 2s debounce
+
+    return () => clearTimeout(handler);
   }, [trips]);
 
   // Sync learning memory to Supabase when it changes
@@ -102,16 +110,20 @@ export default function Home() {
   }, [toasts]);
   
   // Auto-Sync Polling (every 5 minutes)
+  // Auto-sync intervals (Render-safe version)
   useEffect(() => {
     let interval;
-    if (isAutoSync && authenticated && !processing) {
+    if (isAutoSync && authenticated) {
       interval = setInterval(() => {
-        handleAnalysePeriod();
-        setLastSync(new Date());
+        // Only trigger if not already processing to avoid double-overlap
+        if (!processing) {
+          analysePeriod();
+          setLastSync(new Date());
+        }
       }, 5 * 60 * 1000); // 5 minutes
     }
     return () => clearInterval(interval);
-  }, [isAutoSync, authenticated, processing]);
+  }, [isAutoSync, authenticated]); // Removed 'processing' from deps
 
   const addToast = (message, type = 'success') => {
     setToasts(prev => [...prev, { message, type, id: Date.now() }]);
@@ -174,93 +186,117 @@ export default function Home() {
         throw new Error(err.error || 'Failed to classify events');
       }
       const { classifications } = await classifyRes.json();
-
-      // Merge event data with classifications and AUTO-FILL from cache
+      // Merge event data with classifications using a Map for O(N) performance
+      const eventMap = new Map(events.map(e => [e.id, e]));
       const mergedTrips = classifications.map((c) => {
-        const event = events.find(e => e.id === c.eventId);
+        const event = eventMap.get(c.eventId);
+        
         const baseTrip = {
-          ...c,
+          eventId: c.eventId,
+          classification: c.classification || 'needs_review',
+          confidence: c.confidence || 0,
+          reasoning: c.reasoning || '',
+          source: c.source || 'AI',
           title: event?.title || 'Unknown Event',
           date: event?.date || '',
-          description: event?.description || '',
+          description: (event?.description || '').substring(0, 250),
           location: event?.location || '',
-          destination: c.suggestedDestination || null, // Auto-apply AI suggestion
+          destination: c.suggestedDestination || null,
+          roundTripMiles: 0,
+          cost: 0,
+          duration: ''
         };
 
-        // If it's business and lacks a destination, try the cache
         if (baseTrip.classification === 'business' && !baseTrip.destination) {
           if (destinationCache[baseTrip.title]) {
             baseTrip.destination = destinationCache[baseTrip.title];
-            baseTrip.isAutoFilled = true;
           }
         }
-
         return baseTrip;
       });
 
-      setProgress({ step: 'Calculating distances for business trips...', percent: 60 });
+      // Step 3: Fast Bulk Distance Calculation (Server-Side Parallel)
+      const businessWithDest = mergedTrips.filter(t => t.classification === 'business' && t.location && t.destination);
+      
+      if (businessWithDest.length > 0) {
+        setProgress({ step: `Calculating total mileage for ${businessWithDest.length} journeys...`, percent: 60 });
+        
+        // Skip existing results to save API tokens and time
+        const toCalculate = businessWithDest.filter(trip => {
+          const existing = trips.find(t => t.eventId === trip.eventId);
+          if (existing && existing.roundTripMiles > 0 && existing.destination === trip.destination) {
+            trip.roundTripMiles = existing.roundTripMiles;
+            trip.cost = existing.cost;
+            trip.destinationAddress = existing.destinationAddress;
+            trip.duration = existing.duration;
+            return false;
+          }
+          return true;
+        });
 
-      // Step 3: Calculate distances for trips with destinations
-      const businessWithDest = mergedTrips.filter(
-        t => t.classification === 'business' && t.destination
-      );
-
-      let completed = 0;
-      for (const trip of businessWithDest) {
-        // Optimization: Don't re-calculate if we already have it in the state
-        const existing = trips.find(t => t.eventId === trip.eventId);
-        if (existing && existing.roundTripMiles > 0 && existing.destination === trip.destination) {
-          trip.roundTripMiles = existing.roundTripMiles;
-          trip.cost = existing.cost;
-          trip.destinationAddress = existing.destinationAddress;
-          trip.duration = existing.duration;
-          completed++;
-          continue;
-        }
-
-        try {
-          const distRes = await fetch('/api/distance', {
+        if (toCalculate.length > 0) {
+          const bulkRes = await fetch('/api/distance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ destination: trip.destination }),
+            body: JSON.stringify({ destinations: toCalculate.map(t => t.destination) }),
           });
 
-          if (distRes.ok) {
-            const dist = await distRes.json();
-            trip.roundTripMiles = dist.roundTripMiles;
-            trip.cost = dist.cost;
-            trip.destinationAddress = dist.destinationAddress;
-            trip.duration = dist.duration;
+          if (bulkRes.ok) {
+            const { results } = await bulkRes.json();
+            // Map results back to trips
+            toCalculate.forEach((trip, idx) => {
+              const res = results[idx];
+              if (res) {
+                trip.roundTripMiles = res.roundTripMiles;
+                trip.cost = res.cost;
+                trip.destinationAddress = res.destinationAddress;
+                trip.duration = res.duration;
+              }
+            });
           }
-        } catch (err) {
-          console.error(`Distance calc failed for ${trip.destination}:`, err);
         }
-
-        completed++;
-        const pct = 60 + (completed / businessWithDest.length) * 35;
-        setProgress({ step: `Calculating distances (${completed}/${businessWithDest.length})...`, percent: pct });
       }
+      
+      setProgress({ step: 'Finalizing...', percent: 95 });
 
-      // MERGE LOGIC: Keep existing trips and add/update with new analysis
+      // Step 4: Final Batch Update (Memory Safe)
       setTrips(prev => {
-        const updatedTrips = [...prev];
-        mergedTrips.forEach(newTrip => {
-          const existingIndex = updatedTrips.findIndex(t => t.eventId === newTrip.eventId);
+        // Create one shallow copy to mutate safely (avoids multiple copies in memory)
+        const nextTrips = [...prev]; 
+        
+        for (let i = 0; i < mergedTrips.length; i++) {
+          const newTrip = mergedTrips[i];
+          const existingIndex = nextTrips.findIndex(t => t.eventId === newTrip.eventId);
+
           if (existingIndex >= 0) {
-            // Prioritize non-zero mileage or updated destinations
-            const existing = updatedTrips[existingIndex];
-            const hasBetterMileage = (newTrip.roundTripMiles > 0 && (existing.roundTripMiles === 0 || !existing.roundTripMiles));
-            const hasBetterDestination = (newTrip.suggestedDestination && newTrip.suggestedDestination !== existing.destination);
+            const existing = nextTrips[existingIndex];
+            const hasBetterMileage = (newTrip.roundTripMiles > 0 && (!existing.roundTripMiles || existing.roundTripMiles === 0));
+            const hasBetterDesc = (newTrip.description && !existing.description);
             
-            if (hasBetterMileage || hasBetterDestination) {
-              updatedTrips[existingIndex] = { ...existing, ...newTrip };
+            if (hasBetterMileage || hasBetterDesc || newTrip.classification !== existing.classification) {
+              // Explicit assignment to save memory
+              nextTrips[existingIndex] = {
+                ...existing,
+                classification: newTrip.classification,
+                description: newTrip.description || existing.description,
+                roundTripMiles: newTrip.roundTripMiles || existing.roundTripMiles,
+                cost: newTrip.cost || existing.cost,
+                destination: newTrip.destination || existing.destination,
+                destinationAddress: newTrip.destinationAddress || existing.destinationAddress,
+                duration: newTrip.duration || existing.duration
+              };
             }
           } else {
-            updatedTrips.push(newTrip);
+            nextTrips.push(newTrip);
           }
+        }
+        
+        // Sort in-place to avoid creating yet another array copy
+        return nextTrips.sort((a, b) => {
+          const dA = new Date(a?.date || 0).getTime() || 0;
+          const dB = new Date(b?.date || 0).getTime() || 0;
+          return dB - dA;
         });
-        // Sort by date descending
-        return updatedTrips.sort((a, b) => new Date(b.date) - new Date(a.date));
       });
       setProgress({ step: 'Complete!', percent: 100 });
 
@@ -664,7 +700,7 @@ export default function Home() {
                     <span>Live Sync {isAutoSync && <span className="pulse-dot"></span>}</span>
                   </label>
                 </div>
-                {lastSync && (
+                {lastSync && !isNaN(lastSync.getTime()) && (
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem', textAlign: 'right' }}>
                     Last synced: {lastSync.toLocaleTimeString()}
                   </div>
@@ -708,29 +744,17 @@ export default function Home() {
 
         {/* Dashboard content (only when authenticated) */}
         {authenticated && (
-          <>
-            <SummaryBar 
-              trips={trips.filter(t => {
-                if (!startDate || !endDate) return true;
-                return t.date >= startDate && t.date <= endDate;
-              })} 
-              onDownload={handleDownloadReport} 
-              onSave={handleManualSave}
-              onRetrieve={handleManualRetrieve}
-            />
-            <TripTable 
-              trips={trips.filter(t => {
-                if (!startDate || !endDate) return true;
-                const isWithinRange = t.date >= startDate && t.date <= endDate;
-                // ALWAYS show "needs_review" even if out of range? 
-                // No, better to keep it consistent with the selected period.
-                return isWithinRange;
-              })} 
-              onRequestDestination={setPromptTrip}
-              onReviewTrip={handleReviewTrip}
-              onTripUpdate={handleTripUpdate}
-            />
-          </>
+          <Dashboard 
+            trips={trips}
+            startDate={startDate}
+            endDate={endDate}
+            onDownload={handleDownloadReport}
+            onSave={handleManualSave}
+            onRetrieve={handleManualRetrieve}
+            onRequestDestination={setPromptTrip}
+            onReviewTrip={handleReviewTrip}
+            onTripUpdate={handleTripUpdate}
+          />
         )}
       </div>
 
