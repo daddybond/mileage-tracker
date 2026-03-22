@@ -215,6 +215,9 @@ export default function Home() {
         setProgress({ step: `Classifying AI Batch ${Math.floor(i/CHUNK_SIZE) + 1} of ${Math.ceil(freshEvents.length/CHUNK_SIZE)}...`, percent: 30 + Math.floor((i/freshEvents.length) * 20) });
         
         try {
+          // THROTTLE: If not the first chunk, sleep for 8 seconds to rigidly adhere to the 15 RPM model quota
+          if (i > 0) await new Promise(r => setTimeout(r, 8000));
+          
           const classifyRes = await fetch('/api/classify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -226,14 +229,14 @@ export default function Home() {
           });
           
           if (!classifyRes.ok) {
-            console.error(`Batch ${i} failed, continuing to next.`);
+            console.error(`Batch ${Math.floor(i/CHUNK_SIZE) + 1} failed, continuing to next.`);
             continue;
           }
           
           const { classifications: batchClassifications } = await classifyRes.json();
           classifications.push(...batchClassifications);
         } catch (chunkErr) {
-          console.error(`Batch ${i} fatal error:`, chunkErr);
+          console.error(`Batch ${Math.floor(i/CHUNK_SIZE) + 1} fatal error:`, chunkErr);
         }
       }
 
