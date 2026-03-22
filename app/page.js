@@ -220,7 +220,7 @@ export default function Home() {
           date: event?.date || '',
           description: (event?.description || '').substring(0, 250),
           location: event?.location || '',
-          destination: c.suggestedDestination || null,
+          destination: c.destination || c.suggestedDestination || null,
           roundTripMiles: 0,
           cost: 0,
           duration: ''
@@ -235,7 +235,7 @@ export default function Home() {
       });
 
       // Step 3: Fast Bulk Distance Calculation (Server-Side Parallel)
-      const businessWithDest = mergedTrips.filter(t => t.classification === 'business' && t.location && t.destination);
+      const businessWithDest = mergedTrips.filter(t => t.classification === 'business' && t.destination);
       
       if (businessWithDest.length > 0) {
         setProgress({ step: `Calculating total mileage for ${businessWithDest.length} journeys...`, percent: 60 });
