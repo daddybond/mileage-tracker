@@ -105,7 +105,7 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
         </div>
       </div>
 
-      <div className="trip-table-container " style={{ overflowX: 'auto' }}>
+      <div className="trip-table-container " style={{ overflowX: 'auto', paddingBottom: editingId ? '180px' : '0' }}>
         {/* Review Table */}
         {activeTab === 'needs_review' && (
           <table className="trip-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
