@@ -9,45 +9,43 @@ export default function Error({ error, reset }) {
   }, [error]);
 
   return (
-    <div style={{ 
-      padding: '2rem', 
-      margin: '2rem auto',
-      maxWidth: '600px',
-      width: '90%',
-      background: 'rgba(255, 0, 0, 0.1)', 
-      border: '1px solid red', 
-      color: 'white', 
-      fontFamily: 'monospace',
-      wordBreak: 'break-word',
-      whiteSpace: 'pre-wrap',
-      borderRadius: '8px',
-      zIndex: 99999,
-      position: 'relative'
-    }}>
-      <h2>🚨 FATAL APP CRASH 🚨</h2>
-      <p><strong>Take a screenshot and send this to the developer:</strong></p>
-      <hr style={{ margin: '1rem 0', borderColor: 'rgba(255,0,0,0.3)' }} />
-      <p style={{ color: '#ff8888', fontWeight: 'bold' }}>{error.message}</p>
-      <div style={{ marginTop: '1rem', fontSize: '0.8rem', opacity: 0.8, background: '#000', padding: '1rem', borderRadius: '4px' }}>
-        {error.stack}
-      </div>
-      <button
-        onClick={() => reset()}
-        style={{ 
-          marginTop: '2rem', 
+    <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <div className="glass-card animate-in" style={{ 
+        padding: '2.5rem', 
+        maxWidth: '500px',
+        width: '100%',
+        textAlign: 'center',
+        border: '1px solid rgba(244, 63, 94, 0.3)',
+        boxShadow: '0 20px 40px -10px rgba(244, 63, 94, 0.15)'
+      }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem', color: '#fff' }}>Application Error</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+          We encountered an unexpected layout issue. Please reload the dashboard to continue.
+        </p>
+
+        <div style={{ 
+          background: 'rgba(0,0,0,0.4)', 
           padding: '1rem', 
-          background: 'red', 
-          color: 'white', 
-          border: 'none', 
-          borderRadius: '4px',
-          width: '100%',
-          fontSize: '1rem',
-          fontWeight: 'bold',
-          cursor: 'pointer'
-        }}
-      >
-        RELOAD APP
-      </button>
+          borderRadius: '8px', 
+          fontSize: '0.75rem', 
+          color: '#f43f5e', 
+          textAlign: 'left',
+          overflowX: 'auto',
+          marginBottom: '2rem',
+          fontFamily: 'monospace'
+        }}>
+          {error.message}
+        </div>
+
+        <button
+          className="btn-primary"
+          onClick={() => reset()}
+          style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '0.5rem', background: '#f43f5e' }}
+        >
+          <span>🔄</span> Reload Application
+        </button>
+      </div>
     </div>
   );
 }

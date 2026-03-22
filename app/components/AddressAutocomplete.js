@@ -11,7 +11,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
 
   useEffect(() => {
     setInputValue(value || '');
-    if (autoFocus && value && value.length > 2) {
+    if (autoFocus && typeof value === 'string' && value.length > 2) {
       fetchSuggestions(value);
     }
   }, [value, autoFocus]);
