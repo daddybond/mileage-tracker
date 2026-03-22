@@ -70,7 +70,13 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
         className={className}
         value={inputValue}
         onChange={handleChange}
-        onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+        onFocus={() => {
+          if (inputValue.length > 2 && suggestions.length === 0) {
+            fetchSuggestions(inputValue);
+          } else if (suggestions.length > 0) {
+            setShowDropdown(true);
+          }
+        }}
         placeholder={placeholder}
       />
       
