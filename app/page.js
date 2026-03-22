@@ -168,8 +168,23 @@ export default function Home() {
         setProgress({ step: '', percent: 0 });
         return;
       }
+      
+      // PRE-FILTER: Protect rigidly qualified trips. If it exists in state and is 'business' or 'ignored', DO NOT TOUCH.
+      const freshEvents = events.filter(e => {
+        const existing = trips.find(t => t.eventId === e.id);
+        if (!existing) return true; // Brand new
+        if (existing.classification === 'needs_review') return true; // Let AI try again, or it might just stick
+        return false; // It's 'business', or 'ignored'. PROTECT IT.
+      });
 
-      setProgress({ step: `Classifying ${events.length} events with AI...`, percent: 30 });
+      if (freshEvents.length === 0) {
+        addToast('All events in this period are already classified and protected.', 'success');
+        setProcessing(false);
+        setProgress({ step: '', percent: 0 });
+        return;
+      }
+
+      setProgress({ step: `Classifying ${freshEvents.length} new/unresolved events with AI...`, percent: 30 });
 
       const recentBusiness = trips
         .filter(t => t.classification === 'business')
@@ -195,7 +210,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          events, 
+          events: freshEvents, 
           memory: combinedMemory,
           customKeywords: customKeywords
         }),
@@ -206,7 +221,7 @@ export default function Home() {
       }
       const { classifications } = await classifyRes.json();
       // Merge event data with classifications using a Map for O(N) performance
-      const eventMap = new Map(events.map(e => [e.id, e]));
+      const eventMap = new Map(freshEvents.map(e => [e.id, e]));
       const mergedTrips = classifications.map((c) => {
         const event = eventMap.get(c.eventId);
         
@@ -286,14 +301,15 @@ export default function Home() {
         for (let i = 0; i < mergedTrips.length; i++) {
           const newTrip = mergedTrips[i];
           
-          // HARD DROP: Personal or ignored trips are aggressively purged
+          // SOFT-BAN: Personal or ignored trips are silenced, but kept in state so they aren't downloaded again
           if (newTrip.classification === 'personal' || newTrip.classification === 'ignored') {
-            dbDeleteTrip(newTrip.eventId); // Remove from Supabase
             const existingIndex = nextTrips.findIndex(t => t.eventId === newTrip.eventId);
             if (existingIndex >= 0) {
-              nextTrips.splice(existingIndex, 1);
+              nextTrips[existingIndex] = { ...nextTrips[existingIndex], classification: 'ignored' };
+            } else {
+              nextTrips.push({ ...newTrip, classification: 'ignored' });
             }
-            continue; // Skip saving to active state entirely
+            continue; // Move to next
           }
 
           const existingIndex = nextTrips.findIndex(t => t.eventId === newTrip.eventId);
@@ -448,9 +464,18 @@ export default function Home() {
    */
   const handleReviewTrip = async (eventId, newClassification) => {
     if (newClassification === 'delete') {
-      dbDeleteTrip(eventId); // Remove from Supabase
-      setTrips(prev => prev.filter(t => t.eventId !== eventId));
-      addToast('Trip removed.', 'success');
+      try {
+        const tripToUpdate = trips.find(t => t.eventId === eventId);
+        if (tripToUpdate) {
+          const ignoredTrip = { ...tripToUpdate, classification: 'ignored' };
+          setTrips(prev => prev.map(t => t.eventId === eventId ? ignoredTrip : t));
+          saveAllTrips([ignoredTrip]); // Push soft-ban lock to DB
+        }
+        addToast('Journey permanently ignored.', 'info');
+      } catch (err) {
+        console.error('Failed to ignore trip:', err);
+        addToast('Failed to ignore trip.', 'error');
+      }
       return;
     }
 
