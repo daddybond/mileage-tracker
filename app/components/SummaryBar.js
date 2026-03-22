@@ -16,7 +16,7 @@ const SummaryBar = memo(function SummaryBar({ trips, onDownload, onSave, onRetri
   }, [trips]);
 
   return (
-    <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+    <div className="summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
       <div className="glass-card stat-item" style={{ padding: '1.25rem' }}>
         <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Total Miles</div>
         <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--accent)' }}>
@@ -33,12 +33,6 @@ const SummaryBar = memo(function SummaryBar({ trips, onDownload, onSave, onRetri
         <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Business</div>
         <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#f59e0b' }}>
           {businessCount}
-        </div>
-      </div>
-      <div className="glass-card stat-item" style={{ padding: '1.25rem', borderColor: 'rgba(168, 85, 247, 0.2)' }}>
-        <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Personal</div>
-        <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#a855f7' }}>
-          {personalCount}
         </div>
       </div>
       

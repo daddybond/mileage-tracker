@@ -171,13 +171,32 @@ export default function Home() {
 
       setProgress({ step: `Classifying ${events.length} events with AI...`, percent: 30 });
 
+      const recentBusiness = trips
+        .filter(t => t.classification === 'business')
+        .slice(0, 50)
+        .map(t => ({ 
+          title: t.title, 
+          classification: 'business', 
+          destination: t.destinationAddress || t.destination || t.location 
+        }));
+        
+      // Deduplicate memory entries
+      const combinedMemory = [...learningMemory, ...recentBusiness].reduce((acc, current) => {
+        const x = acc.find(item => item.title === current.title);
+        if (!x) {
+          return acc.concat([current]);
+        } else {
+          return acc;
+        }
+      }, []);
+
       // Step 2: Classify events with memory
       const classifyRes = await fetch('/api/classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           events, 
-          memory: learningMemory,
+          memory: combinedMemory,
           customKeywords: customKeywords
         }),
       });
@@ -266,6 +285,17 @@ export default function Home() {
         
         for (let i = 0; i < mergedTrips.length; i++) {
           const newTrip = mergedTrips[i];
+          
+          // HARD DROP: Personal or ignored trips are aggressively purged
+          if (newTrip.classification === 'personal' || newTrip.classification === 'ignored') {
+            dbDeleteTrip(newTrip.eventId); // Remove from Supabase
+            const existingIndex = nextTrips.findIndex(t => t.eventId === newTrip.eventId);
+            if (existingIndex >= 0) {
+              nextTrips.splice(existingIndex, 1);
+            }
+            continue; // Skip saving to active state entirely
+          }
+
           const existingIndex = nextTrips.findIndex(t => t.eventId === newTrip.eventId);
 
           if (existingIndex >= 0) {
@@ -466,6 +496,31 @@ export default function Home() {
       } : t));
       addToast('Moved back to review.', 'success');
       return;
+    }
+
+    // 🔥 Auto-Learn Dynamic Custom Keywords!
+    if (newClassification === 'business') {
+      try {
+        const learnRes = await fetch('/api/learn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: tripToUpdate.title, description: tripToUpdate.description })
+        });
+        if (learnRes.ok) {
+          const { keywords } = await learnRes.json();
+          if (keywords && keywords.length > 0) {
+            setCustomKeywords(prevKWs => {
+              const existingKWs = prevKWs || [];
+              const newKWs = [...new Set([...existingKWs, ...keywords])];
+              saveCustomKeywords(newKWs);
+              return newKWs;
+            });
+            setTimeout(() => addToast(`Learned new keyword: ${keywords.join(', ')}`, 'success'), 1500);
+          }
+        }
+      } catch (err) {
+        console.warn('Background learning failed', err);
+      }
     }
 
     // It is a business trip

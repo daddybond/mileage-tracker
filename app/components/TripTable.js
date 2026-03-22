@@ -28,18 +28,14 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
     return {
       displayedReview: filter(needsReviewTrips),
       displayedBusiness: filter(businessTrips),
-      displayedPersonal: filter(personalTrips),
       totalOriginal: {
         review: needsReviewTrips.length,
-        business: businessTrips.length,
-        personal: personalTrips.length
+        business: businessTrips.length
       }
     };
   }, [trips, searchTerm]);
 
-  const activeTrips = activeTab === 'needs_review' ? displayedReview : 
-                    activeTab === 'business' ? displayedBusiness : 
-                    displayedPersonal;
+  const activeTrips = activeTab === 'needs_review' ? displayedReview : displayedBusiness;
 
   const handleEditStart = (trip) => {
     setEditingId(trip.eventId);
@@ -95,15 +91,6 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
           >
             Business <span style={{ opacity: 0.5 }}>{totalOriginal.business}</span>
           </button>
-          <button 
-            className="tab-btn"
-            onClick={() => setActiveTab('personal')}
-            style={{ 
-              flex: 1, padding: '0.6rem', borderRadius: '999px', border: 'none', background: activeTab === 'personal' ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === 'personal' ? 'white' : 'var(--muted)', fontSize: '0.85rem', fontWeight: '600'
-            }}
-          >
-            Personal <span style={{ opacity: 0.5 }}>{totalOriginal.personal}</span>
-          </button>
         </div>
 
         <div style={{ position: 'relative' }}>
@@ -143,9 +130,8 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
                   <td><span className="badge badge--pending">{trip.confidence || 0}% {trip.source || 'AI'}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn btn-sm btn-success" onClick={() => onReviewTrip(trip.eventId, 'business')}>✓</button>
-                      <button className="btn btn-sm btn-secondary" onClick={() => onReviewTrip(trip.eventId, 'personal')}>✕</button>
-                      <button className="btn btn-sm btn-danger" onClick={() => onReviewTrip(trip.eventId, 'delete')}>🗑️</button>
+                      <button className="btn btn-sm btn-success" onClick={() => onReviewTrip(trip.eventId, 'business')}>✓ Business</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => onReviewTrip(trip.eventId, 'delete')}>🗑️ Ignore</button>
                     </div>
                   </td>
                 </tr>
@@ -221,34 +207,6 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
           </table>
         )}
 
-        {/* Personal Table */}
-        {activeTab === 'personal' && (
-          <table className="trip-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Event</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeTrips.length === 0 ? (
-                <tr><td colSpan="3" className="empty-state">No personal items found.</td></tr>
-              ) : activeTrips.map((trip, index) => (
-                <tr key={trip.eventId || index}>
-                  <td><span className="trip-date">{formatDate(trip.date)}</span></td>
-                  <td>{trip.title}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn btn-sm btn-secondary" onClick={() => onReviewTrip(trip.eventId, 'needs_review')}>↩️</button>
-                      <button className="btn btn-sm btn-danger" onClick={() => onReviewTrip(trip.eventId, 'delete')}>🗑️</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
     </div>
   );
