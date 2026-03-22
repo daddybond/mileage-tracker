@@ -2,12 +2,16 @@
 
 /* Mobile Performance Optimization: Disable expensive effects that crash Safari/Chrome Mobile */
 @media (max-width: 768px) {
+  * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
   .glass-card, 
   .glass-pill, 
   .btn, 
-  .autocomplete-dropdown {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+  .autocomplete-dropdown,
+  .progress-bar-container,
+  .app-header {
     background: rgba(30, 30, 30, 0.95) !important;
     box-shadow: none !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
