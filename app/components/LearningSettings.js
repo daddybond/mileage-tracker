@@ -4,8 +4,8 @@ import { DEFAULT_INDICATORS } from '@/lib/learning-engine';
 
 export default function LearningSettings({ customKeywords, onSave, onCancel }) {
   const indicators = customKeywords || DEFAULT_INDICATORS;
-  const [bizKeywords, setBizKeywords] = useState(indicators.business);
-  const [persKeywords, setPersKeywords] = useState(indicators.personal);
+  const [bizKeywords, setBizKeywords] = useState(indicators.business || []);
+  const [persKeywords, setPersKeywords] = useState(indicators.personal || []);
   const [newBiz, setNewBiz] = useState('');
   const [newPers, setNewPers] = useState('');
 
@@ -60,7 +60,7 @@ export default function LearningSettings({ customKeywords, onSave, onCancel }) {
               <button className="btn btn-primary btn-sm" onClick={() => addKeyword('business')}>Add</button>
             </div>
             <div className="keyword-list">
-              {bizKeywords.map(kw => (
+              {(bizKeywords || []).map(kw => (
                 <span key={kw} className="keyword-tag">
                   {kw}
                   <span className="keyword-tag-remove" onClick={() => removeKeyword('business', kw)}>✕</span>
@@ -84,7 +84,7 @@ export default function LearningSettings({ customKeywords, onSave, onCancel }) {
               <button className="btn btn-primary btn-sm" onClick={() => addKeyword('personal')}>Add</button>
             </div>
             <div className="keyword-list">
-              {persKeywords.map(kw => (
+              {(persKeywords || []).map(kw => (
                 <span key={kw} className="keyword-tag">
                   {kw}
                   <span className="keyword-tag-remove" onClick={() => removeKeyword('personal', kw)}>✕</span>
