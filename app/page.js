@@ -212,27 +212,35 @@ export default function Home() {
 
       // Step 2: Classify events with memory
       let classifications = [];
-      
-      try {
-        const classifyRes = await fetch('/api/classify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            events: freshEvents, 
-            memory: combinedMemory,
-            customKeywords: customKeywords
-          }),
-        });
-        
-        if (!classifyRes.ok) {
-          throw new Error('Classification backend failed');
+      const CHUNK_SIZE = 50; // Larger chunk since no AI is heavily processing, keeps payload size safe
+
+      for (let i = 0; i < freshEvents.length; i += CHUNK_SIZE) {
+        const chunk = freshEvents.slice(i, i + CHUNK_SIZE);
+        setProgress({ step: `Classifying batch ${Math.floor(i/CHUNK_SIZE) + 1} of ${Math.ceil(freshEvents.length/CHUNK_SIZE)}...`, percent: 30 + Math.floor((i/freshEvents.length) * 20) });
+
+        try {
+          const classifyRes = await fetch('/api/classify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              events: chunk.map(e => ({ id: e.id, title: e.title, description: (e.description||'').substring(0,500), location: e.location })), // Strip bloat
+              memory: combinedMemory,
+              customKeywords: customKeywords
+            }),
+          });
+          
+          if (!classifyRes.ok) {
+            console.error(`Batch ${Math.floor(i/CHUNK_SIZE) + 1} failed with status: ${classifyRes.status}`);
+            continue; // Skip failing chunk, keep merging
+          }
+          
+          const data = await classifyRes.json();
+          if (data.classifications) {
+            classifications.push(...data.classifications);
+          }
+        } catch (err) {
+          console.error(`Batch ${Math.floor(i/CHUNK_SIZE) + 1} fatal error:`, err);
         }
-        
-        const data = await classifyRes.json();
-        classifications = data.classifications || [];
-      } catch (err) {
-        console.error('Classification error:', err);
-        throw new Error('Failed to classify events.');
       }
 
       if (classifications.length === 0 && freshEvents.length > 0) {
