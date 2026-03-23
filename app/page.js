@@ -173,7 +173,7 @@ export default function Home() {
       const freshEvents = events.filter(e => {
         const existing = trips.find(t => t.eventId === e.id);
         if (!existing) return true; // Brand new
-        if (existing.classification === 'needs_review') return true; // Let AI try again
+        if (existing.classification === 'needs_review') return true; // Keep for manual review
         return false; // It's 'business', or 'ignored'. PROTECT IT.
       });
 
@@ -189,7 +189,7 @@ export default function Home() {
         return;
       }
 
-      setProgress({ step: `Classifying ${freshEvents.length} new/unresolved events with AI...`, percent: 30 });
+      setProgress({ step: `Classifying ${freshEvents.length} new/unresolved events...`, percent: 30 });
 
       const recentBusiness = trips
         .filter(t => t.classification === 'business')
@@ -210,42 +210,33 @@ export default function Home() {
         }
       }, []);
 
-      // Step 2: Classify events with memory (Sequential Client-Side Batching to prevent Vercel 10s timeouts)
-      const classifications = [];
-      const CHUNK_SIZE = 15;
+      // Step 2: Classify events with memory
+      let classifications = [];
       
-      for (let i = 0; i < freshEvents.length; i += CHUNK_SIZE) {
-        const chunk = freshEvents.slice(i, i + CHUNK_SIZE);
-        setProgress({ step: `Classifying AI Batch ${Math.floor(i/CHUNK_SIZE) + 1} of ${Math.ceil(freshEvents.length/CHUNK_SIZE)}...`, percent: 30 + Math.floor((i/freshEvents.length) * 20) });
+      try {
+        const classifyRes = await fetch('/api/classify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            events: freshEvents, 
+            memory: combinedMemory,
+            customKeywords: customKeywords
+          }),
+        });
         
-        try {
-          // THROTTLE: If not the first chunk, sleep for 8 seconds to rigidly adhere to the 15 RPM model quota
-          if (i > 0) await new Promise(r => setTimeout(r, 8000));
-          
-          const classifyRes = await fetch('/api/classify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              events: chunk, 
-              memory: combinedMemory,
-              customKeywords: customKeywords
-            }),
-          });
-          
-          if (!classifyRes.ok) {
-            console.error(`Batch ${Math.floor(i/CHUNK_SIZE) + 1} failed, continuing to next.`);
-            continue;
-          }
-          
-          const { classifications: batchClassifications } = await classifyRes.json();
-          classifications.push(...batchClassifications);
-        } catch (chunkErr) {
-          console.error(`Batch ${Math.floor(i/CHUNK_SIZE) + 1} fatal error:`, chunkErr);
+        if (!classifyRes.ok) {
+          throw new Error('Classification backend failed');
         }
+        
+        const data = await classifyRes.json();
+        classifications = data.classifications || [];
+      } catch (err) {
+        console.error('Classification error:', err);
+        throw new Error('Failed to classify events.');
       }
 
       if (classifications.length === 0 && freshEvents.length > 0) {
-        throw new Error('All AI classification batches failed or timed out.');
+        throw new Error('Classification failed conceptually.');
       }
 
       // Merge event data with classifications using a Map for O(N) performance
