@@ -63,27 +63,75 @@ function parseCSVRow(row) {
   return fields;
 }
 
+const MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+
 /**
- * Convert en-GB date string (dd/mm/yyyy or dd/mm/yy) to ISO yyyy-mm-dd.
- * Also handles ISO dates passed through unchanged.
+ * Convert various date formats to ISO yyyy-mm-dd.
+ * Handles:
+ *   dd/mm/yyyy  dd/mm/yy  (app export, en-GB)
+ *   d MMM yyyy  (e.g. "19 Mar 2026")
+ *   d MMM       (e.g. "19 Mar" — year inferred from yearHint)
+ *   MMM yyyy    (e.g. "Mar 2026" — section header, return null)
+ *   ISO yyyy-mm-dd
  */
-function parseEnGBDate(str) {
+function parseEnGBDate(str, yearHint) {
   if (!str) return null;
+  str = str.trim();
+
   // Already ISO
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.split('T')[0];
-  // en-GB: dd/mm/yyyy or d/m/yy
-  const parts = str.split('/');
-  if (parts.length !== 3) return null;
-  let [dd, mm, yyyy] = parts;
-  if (yyyy.length === 2) yyyy = `20${yyyy}`;
-  const iso = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
-  return isNaN(new Date(iso).getTime()) ? null : iso;
+
+  // en-GB slash: dd/mm/yyyy or d/m/yy
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length !== 3) return null;
+    let [dd, mm, yyyy] = parts;
+    if (yyyy.length === 2) yyyy = `20${yyyy}`;
+    const iso = `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+    return isNaN(new Date(iso).getTime()) ? null : iso;
+  }
+
+  // Month name formats
+  const monthMatch = str.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s*(\d{4})?$/);
+  if (monthMatch) {
+    const day = parseInt(monthMatch[1], 10);
+    const mon = MONTHS[monthMatch[2].toLowerCase().slice(0,3)];
+    const year = monthMatch[3] ? parseInt(monthMatch[3], 10) : (yearHint || new Date().getFullYear());
+    if (!mon) return null;
+    const iso = `${year}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    return isNaN(new Date(iso).getTime()) ? null : iso;
+  }
+
+  // Weekday prefix: "Thu, 19 Mar 2026" or "Thu 19 Mar 2026"
+  const weekdayMatch = str.match(/^[A-Za-z]{2,3}[,\s]+(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/);
+  if (weekdayMatch) {
+    const day = parseInt(weekdayMatch[1], 10);
+    const mon = MONTHS[weekdayMatch[2].toLowerCase().slice(0,3)];
+    const year = parseInt(weekdayMatch[3], 10);
+    if (!mon) return null;
+    const iso = `${year}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    return isNaN(new Date(iso).getTime()) ? null : iso;
+  }
+
+  return null;
 }
 
 /**
- * Parse the app's exported CSV into trip objects.
- * Handles the format: Date, Event, Destination, Miles (Round Trip), Cost (£)
- * and is tolerant of the TOTAL footer row and blank lines.
+ * Check if a string looks like a month-year section header (e.g. "Mar 2026").
+ * Returns the year if so, otherwise null.
+ */
+function extractYearFromHeader(str) {
+  if (!str) return null;
+  const m = str.trim().match(/^([A-Za-z]{3,})\s+(\d{4})$/);
+  if (!m) return null;
+  const mon = MONTHS[m[1].toLowerCase().slice(0,3)];
+  return mon ? parseInt(m[2], 10) : null;
+}
+
+/**
+ * Parse a mileage CSV into trip objects.
+ * Tolerates: quoted fields, en-GB dates, abbreviated month dates ("19 Mar"),
+ * month-year section headers ("Mar 2026"), TOTAL footer rows, blank lines.
  */
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -103,21 +151,31 @@ function parseCSV(text) {
   };
 
   if (col.date === -1 || col.event === -1) {
-    return { trips: [], errors: ['Could not find Date and Event columns. Make sure it\'s a mileage tracker CSV.'] };
+    return { trips: [], errors: ["Could not find Date and Event columns. Make sure it's a mileage tracker CSV."] };
   }
+
+  let yearHint = null; // updated when we hit a "Mar 2026" section header
 
   for (let i = 1; i < lines.length; i++) {
     const fields = parseCSVRow(lines[i]);
-    if (!fields[0]) continue; // blank row
-    const firstField = fields[0].toLowerCase();
-    if (firstField === 'total' || firstField === 'totals') continue; // footer row
+    if (!fields[0]) continue;
+    const firstField = fields[0].toLowerCase().trim();
+    if (firstField === 'total' || firstField === 'totals') continue;
 
     const dateStr = fields[col.date] || '';
-    const isoDate = parseEnGBDate(dateStr);
+
+    // Check if this row is a month-year section header — update hint and skip
+    const headerYear = extractYearFromHeader(dateStr);
+    if (headerYear) { yearHint = headerYear; continue; }
+
+    const isoDate = parseEnGBDate(dateStr, yearHint);
     if (!isoDate) {
       errors.push(`Row ${i + 1}: couldn't parse date "${dateStr}" — skipped`);
       continue;
     }
+
+    // Keep yearHint in sync with parsed dates so "d MMM" rows after headers work
+    if (!yearHint) yearHint = parseInt(isoDate.slice(0, 4), 10);
 
     const title = fields[col.event] || 'Imported Trip';
     const destination = col.destination >= 0 ? (fields[col.destination] || '') : '';
