@@ -1,4 +1,5 @@
 import './globals.css';
+import Nav from './components/Nav';
 
 export const metadata = {
   title: 'Mileage Tracker — Automated Business Mileage Calculator',
@@ -20,7 +21,10 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="apple-touch-icon" href="/icon.png" />
       </head>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }

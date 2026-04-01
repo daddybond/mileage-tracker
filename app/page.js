@@ -121,7 +121,7 @@ export default function Home() {
   }, [isAutoSync, authenticated]); // Removed 'processing' from deps
 
   const addToast = (message, type = 'success') => {
-    setToasts(prev => [...prev, { message, type, id: Date.now() }]);
+    setToasts(prev => [...prev, { message, type, id: Date.now() + Math.random() }]);
   };
 
   const checkAuth = async () => {
@@ -218,7 +218,7 @@ export default function Home() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              events: chunk.map(e => ({ id: e.id, title: e.title, description: (e.description||'').substring(0,500), location: e.location })), // Strip bloat
+              events: chunk.map(e => ({ id: e.id, title: e.title, description: (e.description||'').substring(0, 2500), location: e.location })), // Pass sufficient description to avoid losing tags like #biz at the bottom
               memory: combinedMemory,
               customKeywords: customKeywords
             }),

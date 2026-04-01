@@ -294,6 +294,16 @@ body {
   border-color: var(--border-hover);
 }
 
+.btn-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.btn-success:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
 .btn-danger {
   background: var(--error-bg);
   color: var(--error);
@@ -1205,4 +1215,60 @@ input[type="date"]:focus {
   accent-color: var(--accent);
   width: 16px;
   height: 16px;
+}
+
+/* ========================================
+   Navigation
+   ======================================== */
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-nav-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-nav-brand {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.app-nav-links {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.app-nav-link {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.app-nav-link:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-nav-link--active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
 }
