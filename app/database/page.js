@@ -1,29 +1,24 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import { loadTrips, saveAllTrips, deleteTrip as dbDeleteTrip } from '../../lib/supabase';
 import { MILEAGE_RATE } from '../../lib/constants';
 
 function getTaxYearBounds(offset = 0) {
   const now = new Date();
-  const m = now.getMonth(); // 0-indexed: April = 3
+  const m = now.getMonth();
   const d = now.getDate();
-  // New tax year starts April 6th — before that we're still in the previous year
   const pastApril6 = m > 3 || (m === 3 && d >= 6);
   const year = pastApril6
     ? now.getFullYear() + offset
     : now.getFullYear() - 1 + offset;
-  return {
-    start: `${year}-04-06`,
-    end: `${year + 1}-04-05`,
-  };
+  return { start: `${year}-04-06`, end: `${year + 1}-04-05` };
 }
 
 function getPresetDates(preset) {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
-
   if (preset === 'this_month') {
     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     return { start, end: today };
@@ -45,6 +40,110 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/**
+ * Parse a CSV row respecting quoted fields that may contain commas.
+ */
+function parseCSVRow(row) {
+  const fields = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      if (inQuotes && row[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+/**
+ * Convert en-GB date string (dd/mm/yyyy or dd/mm/yy) to ISO yyyy-mm-dd.
+ * Also handles ISO dates passed through unchanged.
+ */
+function parseEnGBDate(str) {
+  if (!str) return null;
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.split('T')[0];
+  // en-GB: dd/mm/yyyy or d/m/yy
+  const parts = str.split('/');
+  if (parts.length !== 3) return null;
+  let [dd, mm, yyyy] = parts;
+  if (yyyy.length === 2) yyyy = `20${yyyy}`;
+  const iso = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  return isNaN(new Date(iso).getTime()) ? null : iso;
+}
+
+/**
+ * Parse the app's exported CSV into trip objects.
+ * Handles the format: Date, Event, Destination, Miles (Round Trip), Cost (£)
+ * and is tolerant of the TOTAL footer row and blank lines.
+ */
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { trips: [], errors: ['File appears empty'] };
+
+  const header = parseCSVRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+  const trips = [];
+  const errors = [];
+
+  // Map column indices flexibly
+  const col = {
+    date: header.findIndex(h => h.startsWith('date')),
+    event: header.findIndex(h => h.startsWith('event') || h.startsWith('title')),
+    destination: header.findIndex(h => h.startsWith('destination') || h.startsWith('dest')),
+    miles: header.findIndex(h => h.startsWith('mile') || h === 'miles'),
+    cost: header.findIndex(h => h.startsWith('cost') || h === 'cost'),
+  };
+
+  if (col.date === -1 || col.event === -1) {
+    return { trips: [], errors: ['Could not find Date and Event columns. Make sure it\'s a mileage tracker CSV.'] };
+  }
+
+  for (let i = 1; i < lines.length; i++) {
+    const fields = parseCSVRow(lines[i]);
+    if (!fields[0]) continue; // blank row
+    const firstField = fields[0].toLowerCase();
+    if (firstField === 'total' || firstField === 'totals') continue; // footer row
+
+    const dateStr = fields[col.date] || '';
+    const isoDate = parseEnGBDate(dateStr);
+    if (!isoDate) {
+      errors.push(`Row ${i + 1}: couldn't parse date "${dateStr}" — skipped`);
+      continue;
+    }
+
+    const title = fields[col.event] || 'Imported Trip';
+    const destination = col.destination >= 0 ? (fields[col.destination] || '') : '';
+    const milesRaw = col.miles >= 0 ? fields[col.miles] : '';
+    const costRaw = col.cost >= 0 ? fields[col.cost] : '';
+    const miles = parseFloat(milesRaw) || 0;
+    const cost = parseFloat((costRaw || '').replace(/[£$,]/g, '')) || Math.round(miles * MILEAGE_RATE * 100) / 100;
+
+    trips.push({
+      eventId: `imported_${isoDate}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+      classification: 'business',
+      title,
+      date: isoDate,
+      destination,
+      destinationAddress: destination,
+      roundTripMiles: miles,
+      cost,
+      source: 'CSV Import',
+      reasoning: 'Imported from CSV',
+      confidence: 100,
+    });
+  }
+
+  return { trips, errors };
+}
+
 export default function DatabasePage() {
   const [allTrips, setAllTrips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +155,11 @@ export default function DatabasePage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Init with current tax year
+  // CSV import state
+  const [importPreview, setImportPreview] = useState(null); // { trips, errors, fileName }
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     const { start, end } = getTaxYearBounds(0);
     setStartDate(start);
@@ -65,19 +168,14 @@ export default function DatabasePage() {
 
   useEffect(() => {
     async function init() {
-      // Load from Supabase
       const dbTrips = await loadTrips();
-
-      // Also load from localStorage and merge any trips Supabase doesn't have
       const localRaw = typeof window !== 'undefined' ? localStorage.getItem('mileage_trips') : null;
       const localTrips = localRaw ? JSON.parse(localRaw) : [];
       const dbIds = new Set(dbTrips.map(t => t.eventId));
       const localOnly = localTrips.filter(t => !dbIds.has(t.eventId));
-
       const merged = [...dbTrips, ...localOnly]
         .filter(t => t.classification === 'business')
         .sort((a, b) => new Date(b.date) - new Date(a.date));
-
       setAllTrips(merged);
       setLoading(false);
     }
@@ -86,7 +184,7 @@ export default function DatabasePage() {
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 5000);
   };
 
   const applyPreset = (preset) => {
@@ -116,6 +214,8 @@ export default function DatabasePage() {
     cost: filtered.reduce((s, t) => s + (Number(t.cost) || 0), 0),
     count: filtered.length,
   }), [filtered]);
+
+  // ── Edit handlers ────────────────────────────────────────
 
   const handleEditStart = (trip) => {
     setEditingId(trip.eventId);
@@ -166,6 +266,8 @@ export default function DatabasePage() {
     showToast('Trip deleted.');
   };
 
+  // ── Export ───────────────────────────────────────────────
+
   const handleExportCSV = () => {
     if (filtered.length === 0) { showToast('No trips to export.', 'error'); return; }
     const headers = ['Date', 'Event', 'Destination', 'Miles (Round Trip)', 'Cost (£)'];
@@ -191,6 +293,49 @@ export default function DatabasePage() {
     showToast(`Exported ${filtered.length} trips.`);
   };
 
+  // ── Import ───────────────────────────────────────────────
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Reset so the same file can be re-selected
+    e.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const { trips, errors } = parseCSV(text);
+      setImportPreview({ trips, errors, fileName: file.name });
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importPreview || importPreview.trips.length === 0) return;
+    setImporting(true);
+
+    // Deduplicate against existing trips by date + title
+    const existingKeys = new Set(allTrips.map(t => `${t.date?.split('T')[0]}|${t.title}`));
+    const newTrips = importPreview.trips.filter(
+      t => !existingKeys.has(`${t.date}|${t.title}`)
+    );
+    const skipped = importPreview.trips.length - newTrips.length;
+
+    const merged = [...allTrips, ...newTrips].sort((a, b) => new Date(b.date) - new Date(a.date));
+    setAllTrips(merged);
+    await saveAllTrips(merged);
+
+    setImportPreview(null);
+    setImporting(false);
+
+    const msg = skipped > 0
+      ? `Imported ${newTrips.length} trips (${skipped} duplicates skipped).`
+      : `Imported ${newTrips.length} trips successfully.`;
+    showToast(msg);
+  };
+
+  // ── Render ───────────────────────────────────────────────
+
   return (
     <>
       <div className="app-background" />
@@ -203,12 +348,87 @@ export default function DatabasePage() {
         </div>
       )}
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
+      {/* Import preview modal */}
+      {importPreview && (
+        <div className="modal-overlay" onClick={() => setImportPreview(null)}>
+          <div className="modal" style={{ maxWidth: '620px', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+              <div>
+                <div className="modal-title">Import from CSV</div>
+                <div className="modal-description" style={{ marginBottom: 0 }}>
+                  {importPreview.fileName} · {importPreview.trips.length} trips found
+                </div>
+              </div>
+              <button className="btn btn-sm btn-secondary" onClick={() => setImportPreview(null)}>✕</button>
+            </div>
+
+            {importPreview.errors.length > 0 && (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '0.75rem', padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.8rem', color: '#f87171' }}>
+                <strong>Parse warnings:</strong>
+                <ul style={{ marginTop: '0.25rem', paddingLeft: '1.25rem' }}>
+                  {importPreview.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {importPreview.trips.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>No valid trips found in this file.</p>
+            ) : (
+              <div style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
+                <table className="trip-table" style={{ width: '100%', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Event</th>
+                      <th>Destination</th>
+                      <th>Miles</th>
+                      <th>Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.trips.map((t, i) => (
+                      <tr key={i}>
+                        <td style={{ whiteSpace: 'nowrap' }}><span className="trip-date">{formatDate(t.date)}</span></td>
+                        <td><div className="trip-event-name">{t.title}</div></td>
+                        <td><span className="trip-journey">{t.destinationAddress || '—'}</span></td>
+                        <td><span className="trip-miles">{t.roundTripMiles || '—'}</span></td>
+                        <td><span className="trip-cost">£{Number(t.cost || 0).toFixed(2)}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setImportPreview(null)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleImportConfirm}
+                disabled={importing || importPreview.trips.length === 0}
+              >
+                {importing ? 'Importing...' : `Import ${importPreview.trips.length} trips`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="app-container" style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1rem 4rem' }}>
 
         {/* Page header */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Trip Database</h1>
-          <p className="sub-heading">All confirmed business trips. Edit or delete any record.</p>
+          <p className="sub-heading">All confirmed business trips. Edit, delete, or import records.</p>
         </div>
 
         {/* Filters */}
@@ -220,11 +440,7 @@ export default function DatabasePage() {
               { label: 'This Tax Year', value: 'this_tax_year' },
               { label: 'Last Tax Year', value: 'last_tax_year' },
             ].map(p => (
-              <button
-                key={p.value}
-                className="btn btn-sm btn-secondary"
-                onClick={() => applyPreset(p.value)}
-              >
+              <button key={p.value} className="btn btn-sm btn-secondary" onClick={() => applyPreset(p.value)}>
                 {p.label}
               </button>
             ))}
@@ -233,19 +449,9 @@ export default function DatabasePage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 280px' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>From</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                style={{ flex: 1 }}
-              />
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ flex: 1 }} />
               <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>To</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-                style={{ flex: 1 }}
-              />
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ flex: 1 }} />
             </div>
             <input
               type="text"
@@ -257,29 +463,27 @@ export default function DatabasePage() {
           </div>
         </div>
 
-        {/* Summary + export */}
+        {/* Summary */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
           <div className="glass-card stat-item" style={{ padding: '1.25rem' }}>
             <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Total Miles</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--accent)' }}>
-              {totals.miles.toFixed(1)}
-            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: 'var(--accent)' }}>{totals.miles.toFixed(1)}</div>
           </div>
           <div className="glass-card stat-item" style={{ padding: '1.25rem' }}>
             <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Total Cost</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#10b981' }}>
-              £{totals.cost.toFixed(2)}
-            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#10b981' }}>£{totals.cost.toFixed(2)}</div>
           </div>
           <div className="glass-card stat-item" style={{ padding: '1.25rem' }}>
             <div className="stat-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '0.25rem' }}>Trips</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#f59e0b' }}>
-              {totals.count}
-            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#f59e0b' }}>{totals.count}</div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+        {/* Action bar */}
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => fileInputRef.current?.click()}>
+            ⬆️ Import CSV
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
             ⬇️ Export CSV
           </button>
@@ -298,7 +502,7 @@ export default function DatabasePage() {
               <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No trips found</div>
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
                 {allTrips.length === 0
-                  ? 'No business trips in the database yet.'
+                  ? 'No business trips yet. Import a CSV to get started.'
                   : 'Try adjusting the date range or search term.'}
               </div>
             </div>
@@ -349,21 +553,13 @@ export default function DatabasePage() {
                             </span>
                           )}
                         </td>
-                        <td>
-                          <span className="trip-miles">{trip.roundTripMiles != null ? trip.roundTripMiles : '—'}</span>
-                        </td>
-                        <td>
-                          <span className="trip-cost">£{trip.cost != null ? Number(trip.cost).toFixed(2) : '0.00'}</span>
-                        </td>
+                        <td><span className="trip-miles">{trip.roundTripMiles != null ? trip.roundTripMiles : '—'}</span></td>
+                        <td><span className="trip-cost">£{trip.cost != null ? Number(trip.cost).toFixed(2) : '0.00'}</span></td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.4rem' }}>
                             {isEditing ? (
                               <>
-                                <button
-                                  className="btn btn-sm btn-success"
-                                  onClick={() => handleEditSave(trip.eventId)}
-                                  disabled={saving}
-                                >
+                                <button className="btn btn-sm btn-success" onClick={() => handleEditSave(trip.eventId)} disabled={saving}>
                                   {saving ? '...' : '💾'}
                                 </button>
                                 <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)}>✕</button>
