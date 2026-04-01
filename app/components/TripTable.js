@@ -10,10 +10,9 @@ export default function TripTable({ trips, onRequestDestination, onReviewTrip, o
   const [editValues, setEditValues] = useState({});
 
   // Memoize everything to save memory
-  const { displayedReview, displayedBusiness, displayedPersonal, totalOriginal } = useMemo(() => {
+  const { displayedReview, displayedBusiness, totalOriginal } = useMemo(() => {
     const businessTrips = trips.filter(t => t.classification === 'business');
     const needsReviewTrips = trips.filter(t => t.classification === 'needs_review');
-    const personalTrips = trips.filter(t => t.classification === 'personal');
 
     const filter = (list) => {
       if (!searchTerm) return list;

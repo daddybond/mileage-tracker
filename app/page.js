@@ -87,11 +87,6 @@ export default function Home() {
     return () => clearTimeout(handler);
   }, [trips]);
 
-  // Sync learning memory to Supabase when it changes
-  useEffect(() => {
-    // We save individual entries when they're added, not the whole array
-  }, [learningMemory]);
-
   // Sync keywords to Supabase when they change
   useEffect(() => {
     if (customKeywords) {
@@ -502,7 +497,6 @@ export default function Home() {
         if (tripToUpdate) {
           const ignoredTrip = { ...tripToUpdate, classification: 'ignored' };
           setTrips(prev => prev.map(t => t.eventId === eventId ? ignoredTrip : t));
-          saveAllTrips([ignoredTrip]); // Push soft-ban lock to DB
         }
         addToast('Journey permanently ignored.', 'info');
       } catch (err) {
@@ -568,8 +562,9 @@ export default function Home() {
           const { keywords } = await learnRes.json();
           if (keywords && keywords.length > 0) {
             setCustomKeywords(prevKWs => {
-              const existingKWs = prevKWs || [];
-              const newKWs = [...new Set([...existingKWs, ...keywords])];
+              const existing = prevKWs || { business: [], personal: [] };
+              const newBiz = [...new Set([...existing.business, ...keywords])];
+              const newKWs = { ...existing, business: newBiz };
               saveCustomKeywords(newKWs);
               return newKWs;
             });
