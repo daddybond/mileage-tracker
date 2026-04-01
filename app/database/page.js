@@ -7,7 +7,11 @@ import { MILEAGE_RATE } from '../../lib/constants';
 
 function getTaxYearBounds(offset = 0) {
   const now = new Date();
-  const year = now.getMonth() >= 3 // April = month 3 (0-indexed)
+  const m = now.getMonth(); // 0-indexed: April = 3
+  const d = now.getDate();
+  // New tax year starts April 6th — before that we're still in the previous year
+  const pastApril6 = m > 3 || (m === 3 && d >= 6);
+  const year = pastApril6
     ? now.getFullYear() + offset
     : now.getFullYear() - 1 + offset;
   return {
@@ -60,10 +64,24 @@ export default function DatabasePage() {
   }, []);
 
   useEffect(() => {
-    loadTrips().then(trips => {
-      setAllTrips(trips.filter(t => t.classification === 'business'));
+    async function init() {
+      // Load from Supabase
+      const dbTrips = await loadTrips();
+
+      // Also load from localStorage and merge any trips Supabase doesn't have
+      const localRaw = typeof window !== 'undefined' ? localStorage.getItem('mileage_trips') : null;
+      const localTrips = localRaw ? JSON.parse(localRaw) : [];
+      const dbIds = new Set(dbTrips.map(t => t.eventId));
+      const localOnly = localTrips.filter(t => !dbIds.has(t.eventId));
+
+      const merged = [...dbTrips, ...localOnly]
+        .filter(t => t.classification === 'business')
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      setAllTrips(merged);
       setLoading(false);
-    });
+    }
+    init();
   }, []);
 
   const showToast = (msg, type = 'success') => {
