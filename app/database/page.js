@@ -154,13 +154,16 @@ function parseCSV(text) {
     return { trips: [], errors: ["Could not find Date and Event columns. Make sure it's a mileage tracker CSV."] };
   }
 
+  // Words that appear in summary/footer rows — skip silently
+  const SKIP_PREFIXES = ['total', 'metric', 'business trip', 'mileage cost', 'miles'];
+
   let yearHint = null; // updated when we hit a "Mar 2026" section header
 
   for (let i = 1; i < lines.length; i++) {
     const fields = parseCSVRow(lines[i]);
     if (!fields[0]) continue;
     const firstField = fields[0].toLowerCase().trim();
-    if (firstField === 'total' || firstField === 'totals') continue;
+    if (SKIP_PREFIXES.some(p => firstField.startsWith(p))) continue;
 
     const dateStr = fields[col.date] || '';
 
@@ -170,7 +173,10 @@ function parseCSV(text) {
 
     const isoDate = parseEnGBDate(dateStr, yearHint);
     if (!isoDate) {
-      errors.push(`Row ${i + 1}: couldn't parse date "${dateStr}" — skipped`);
+      // Only warn if the row actually has event data — pure blank/junk rows aren't useful warnings
+      if (fields[col.event]?.trim()) {
+        errors.push(`Row ${i + 1}: couldn't parse date "${dateStr}" — skipped`);
+      }
       continue;
     }
 
